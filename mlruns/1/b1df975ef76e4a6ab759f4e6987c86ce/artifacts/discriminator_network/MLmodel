@@ -1,0 +1,13 @@
+flavors:
+  python_function:
+    env: conda.yaml
+    loader_module: mlflow.tensorflow
+    python_version: 3.7.6
+  tensorflow:
+    code: null
+    meta_graph_tags: null
+    saved_model_dir: tfmodel
+    signature_def_key: serving_default
+mlflow_version: 1.30.0
+model_uuid: 880e30bb88a749aeac367cf5c7bc1c2b
+utc_time_created: '2022-11-20 17:03:58.663368'
