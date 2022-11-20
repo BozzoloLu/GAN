@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/Ludovico/Desktop/Projects/Git_projects/GAN/mlruns/1/eea9a4163c0248aebcfddb75ea44c530/artifacts
+end_time: 1668948912660
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+run_id: eea9a4163c0248aebcfddb75ea44c530
+run_name: Run
+run_uuid: eea9a4163c0248aebcfddb75ea44c530
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1668945034655
+status: 3
+tags: []
+user_id: Ludovico
