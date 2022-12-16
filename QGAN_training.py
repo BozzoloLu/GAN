@@ -33,9 +33,9 @@ n_generators = 4
 image_size = 8
 batch_size = 1
 loss = nn.BCELoss()
-lrG = 0.3
-lrD = 0.01
-epochs = 1500
+lr_gen = 0.3
+lr_disc = 0.01
+epochs = 500
 
 
 
@@ -47,7 +47,7 @@ y_train = digits.target
 x_train = x_train.reshape(len(x_train), 8, 8)
 x_train.shape
 
-rd, inp = resize_data(x_train, y_train, label = (0, 1), image_size = 8)
+rd, inp = resize_data(x_train, y_train, label = (0,), image_size = 8)
 torch.save(inp, save_path + 'real.pt')
 dataloader = torch.utils.data.DataLoader(rd, batch_size=batch_size, shuffle=True, drop_last=True)
 
@@ -66,7 +66,7 @@ loss_d_mean = []
 for run in range(runs): 
 
     qgan = GAN(model = 'Quantum', dataloader = dataloader, gen_net = gen_net, disc_net = disc_net, z_dim = z_dim, image_size = image_size, 
-            batch_size = batch_size, lrG = lrG, lrD = lrD, gen_loss = loss, disc_loss = loss, save_path = save_path, device = device)
+            batch_size = batch_size, lr_gen = lr_gen, lr_disc = lr_disc, gen_loss = loss, disc_loss = loss, save_path = save_path, device = device)
 
     qgan.learn(epochs)
 

@@ -1,20 +1,12 @@
-# Library imports
-import math
-import random
+
 import numpy as np
-from numpy import cov
-from numpy import trace
-from numpy import iscomplexobj
-from scipy.linalg import sqrtm
-import pandas as pd
+import random
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pennylane as qml
 from sklearn import datasets
 import tensorflow as tf
 
-
-# Pytorch imports
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -26,9 +18,11 @@ from torchsummary import summary
 import time
 import datetime
 from alive_progress import alive_bar
-import seaborn as sns
 
-device = torch.device("cpu")
+# from numpy import cov
+# from numpy import trace
+# from numpy import iscomplexobj
+# from scipy.linalg import sqrtm
 
 class Generator(nn.Module):
 
@@ -81,8 +75,7 @@ class QuantumGenerator(nn.Module):
         self.gen_n_layers = gen_n_layers
         self.n_generators = n_generators
         self.device = device
-
-        self.q_params = nn.ParameterList([nn.Parameter(q_delta * torch.rand(self.gen_n_layers * self.n_qubits), 
+        self.vqc_params = nn.ParameterList([nn.Parameter(q_delta * torch.rand(self.gen_n_layers * self.n_qubits), 
                                           requires_grad=True)for _ in range(self.n_generators)])
 
     def forward(self, x):
@@ -92,27 +85,23 @@ class QuantumGenerator(nn.Module):
         images = torch.Tensor(x.size(0), 0).to(self.device)
 
         # Iterate over all sub-generators
-        for params in self.q_params:
-
+        for params in self.vqc_params:
             
             patches = torch.Tensor(0, patch_size).to(self.device)
             for elem in x:
 
                 probs = quantum_generator_circuit(elem, params, self.gen_n_layers, self.n_qubits)
-                partial_meas = probs[: (2 ** (n_qubits - self.ancillary_qubits))]
-                partial_meas /= torch.sum(probs)
-
+                partial_measure = probs[: (2 ** (n_qubits - self.ancillary_qubits))]
+                partial_measure /= torch.sum(probs)
             
-                out = partial_meas / torch.max(partial_meas)
+                out = partial_measure / torch.max(partial_measure)
                 out = out.float().unsqueeze(0)
                 patches = torch.cat((patches, out))
 
-            # define the image
+            # Building the image
             images = torch.cat((images, patches), 1)
 
         return images
-
-
 
 
 class Discriminator(nn.Module):
@@ -121,25 +110,27 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
 
         self.image_size = image_size
-
-        self.model = nn.Sequential(
-                                    # Inputs to first hidden layer (num_input_features -> 64)
-                                    nn.Linear(self.image_size * self.image_size, 64),
-                                    nn.ReLU(),
-                                    # First hidden layer (64 -> 16)
-                                    nn.Linear(64, 16),
-                                    nn.ReLU(),
-                                    # Second hidden layer (16 -> output)
-                                    nn.Linear(16, 1),
-                                    nn.Sigmoid(),
-                                    )
+        self.linear1 = nn.Linear(self.image_size * self.image_size, 64)
+        self.relu1 = nn.ReLU()
+        self.linear2 = nn.Linear(64, 16)
+        self.relu2 = nn.ReLU()
+        self.linear3 = nn.Linear(16, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        return self.model(x)
+
+        x = self.linear1(x)
+        x = self.relu1(x)
+        x = self.linear2(x)
+        x = self.relu2(x)
+        x = self.linear3(x)
+        x = self.sigmoid(x)
+
+        return x
 
 
 class GAN():
-    def __init__(self, model, dataloader, gen_net, disc_net, z_dim, image_size, batch_size, lrG, lrD, gen_loss, disc_loss, save_path, device):
+    def __init__(self, model, dataloader, gen_net, disc_net, z_dim, image_size, batch_size, lr_gen, lr_disc, gen_loss, disc_loss, save_path, device):
 
         self.model = model
         self.dataloader = dataloader
@@ -148,45 +139,21 @@ class GAN():
         self.z_dim = z_dim
         self.image_size = image_size
         self.batch_size = batch_size
-        self.lrG = lrG
-        self.lrD = lrD
+        self.lr_gen = lr_gen
+        self.lr_disc = lr_disc
         self.gen_loss = gen_loss
         self.disc_loss = disc_loss
         self.save_path = save_path
         self.device = device
 
-        # Optimisers
-        self.optD = optim.SGD(self.disc_net.parameters(), lr=self.lrD)
-        self.optG = optim.SGD(self.gen_net.parameters(), lr=self.lrG)
+        self.opt_gen = optim.SGD(self.gen_net.parameters(), lr=self.lr_gen)
+        self.opt_disc = optim.SGD(self.disc_net.parameters(), lr=self.lr_disc)        
 
-        self.real_labels = torch.full((self.batch_size,), 1.0, dtype=torch.float, device=device)
-        self.fake_labels = torch.full((self.batch_size,), 0.0, dtype=torch.float, device=device)        
+        self.real_labels = torch.full((self.batch_size,), 1.0, dtype=torch.float, device=self.device)
+        self.fake_labels = torch.full((self.batch_size,), 0.0, dtype=torch.float, device=self.device)        
 
         self.loss_g, self.loss_d = [], []
         #self.total_fid = []
-
-    # Collect images for plotting later        
-
-    # def generated_and_save_images(self, results):
-
-    #     fig = plt.figure(figsize=(20, 10))
-    #     outer = gridspec.GridSpec(5, 2, wspace=0.1)
-
-    #     for i, images in enumerate(results):
-    #         inner = gridspec.GridSpecFromSubplotSpec(1, images.size(0), subplot_spec=outer[i])
-            
-    #         images = torch.squeeze(images, dim=1)
-    #         for j, im in enumerate(images):
-
-    #             ax = plt.Subplot(fig, inner[j])
-    #             ax.imshow(im.numpy(), cmap="gray")
-    #             ax.set_xticks([])
-    #             ax.set_yticks([])
-    #             if j==0:
-    #                 ax.set_title(f'Iteration {50+i*50}', loc='left', color = 'White')
-    #             fig.add_subplot(ax)
-
-    #     plt.show()
 
     # def calculate_fid(self, act1, act2):
 
@@ -210,54 +177,48 @@ class GAN():
 
     def train_step(self, data):
 
-        # Data for training the discriminator
+        # Defining training data
         data = data.reshape(-1, self.image_size * self.image_size)
-        real_data = data.to(device)
-        #print('real', real_data.shape)
+        real_data = data.to(self.device)
 
-        # Noise following a uniform distribution in range [0,pi/2)
-        noise = torch.rand(self.batch_size, self.z_dim, device=device) #* math.pi / 2
+        # Generating random noise
+        noise = torch.rand(self.batch_size, self.z_dim, device=self.device) #* math.pi / 2
         fake_data = self.gen_net(noise)
-        #print(fake_data.shape)
 
         # Training the discriminator
         self.disc_net.zero_grad()        
-        #outD_real = self.disc_net(real_data.view(1, 64, 1, 1))
-        #outD_fake = self.disc_net(fake_data.view(1, 64, 1, 1))
-        outD_real = self.disc_net(real_data).view(-1)
-        #outD_fake = self.disc_net(fake_data.detach()).view(-1)
+        disc_real = self.disc_net(real_data).view(-1)
+
         if self.model == 'Classical':
-            outD_fake = self.disc_net(fake_data.view(fake_data.size(0), -1).detach()).view(-1)
+            disc_fake = self.disc_net(fake_data.view(fake_data.size(0), -1).detach()).view(-1)
         elif self.model == 'Quantum':
-            outD_fake = self.disc_net(fake_data.detach()).view(-1)
+            disc_fake = self.disc_net(fake_data.detach()).view(-1)
         else:
             print('Typology not admitted.')
 
-        errD_real = self.disc_loss(outD_real, self.real_labels)
-        errD_fake = self.disc_loss(outD_fake, self.fake_labels)
-        # Propagate gradients
-        errD_real.backward()
-        errD_fake.backward()
-
-        errD = errD_real + errD_fake
-        self.optD.step()
+        ld_real = self.disc_loss(disc_real, self.real_labels)
+        ld_fake = self.disc_loss(disc_fake, self.fake_labels)
+        ld_real.backward()
+        ld_fake.backward()
+        ld = ld_real + ld_fake
+        self.opt_disc.step()
 
         # Training the generator
         self.gen_net.zero_grad()
-        outD_fake = self.disc_net(fake_data).view(-1)
-        errG = self.gen_loss(outD_fake, self.real_labels)
-        errG.backward()
-        self.optG.step()
+        disc_fake = self.disc_net(fake_data).view(-1)
+        lg = self.gen_loss(disc_fake, self.real_labels)
+        lg.backward()
+        self.opt_gen.step()
 
-        return errG, errD
+        return lg, ld
 
 
     def learn(self, epochs):
 
-        # Fixed noise allows us to visually track the generated images throughout training
-        self.fixed_noise = torch.rand(8, self.z_dim, device=device) #* math.pi / 2
+        # Defining a fixed noise for tracking the training progress 
+        self.fixed_noise = torch.rand(8, self.z_dim, device=self.device) #* math.pi / 2
 
-        # Iteration counter
+        # Initializing epochs
         epoch = 0        
 
         results = []
@@ -275,25 +236,25 @@ class GAN():
                     time.sleep(0.05)
                     bar()
 
-                    # Show loss values         
+                    # Saving models each 10 epochs
                     if epoch % 10 == 0:
-                        #print(f'Iteration: {epoch}, Generator Loss: {lg:0.3f}, Discriminator Loss: {ld:0.3f}')
+
                         test_images = self.gen_net(self.fixed_noise).view(8,1,self.image_size,self.image_size).cpu().detach()
-                        #test_images = self.gen_net(self.fixed_noise).cpu().detach()
+                        
                         if self.model == 'Classical':
                             torch.save(self.gen_net, self.save_path + f'gen_epoch_{epoch}')
                         elif self.model == 'Quantum':
                             torch.save(self.gen_net, self.save_path + f'q_gen_epoch_{epoch}')
-                        #torch.save(self.gen_net.state_dict(), self.save_path + f'gen_epoch_{epoch}')
+                            #torch.save(self.gen_net.state_dict(), self.save_path + f'gen_epoch_{epoch}')
                         else:
                             print('Typology not admitted.')
                         
-                        # Save images every 50 iterations
+                        # Save results every 50 iterations
                         if epoch % 50 == 0:
                             results.append(test_images) 
+                            torch.save(results, self.save_path + 'synthetic.pt')
                             #print(results[0][0][0].shape)
-                            #print(data[0].shape)
-                            torch.save(results, self.save_path + 'synthetic.pt')     
+                            #print(data[0].shape)                                 
                             #fid = self.calculate_fid(data[0], results[0][0][0])  
                             #self.total_fid.append(fid.item())
                             #print('fid: ', fid)      
