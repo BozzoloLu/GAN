@@ -54,7 +54,9 @@ def quantum_generator_circuit(noise, gen_weights, gen_n_layers, n_qubits):
 
         # Rotation gates
         for y in range(n_qubits):
+            qml.RX(gen_weights[i][y], wires=y)
             qml.RY(gen_weights[i][y], wires=y)
+            qml.RZ(gen_weights[i][y], wires=y)
 
         # Entangling gates
         for y in range(n_qubits - 1):

@@ -35,7 +35,7 @@ batch_size = 1
 loss = nn.BCELoss()
 lr_gen = 0.3
 lr_disc = 0.01
-epochs = 500
+epochs = 2000
 
 
 
@@ -47,7 +47,7 @@ y_train = digits.target
 x_train = x_train.reshape(len(x_train), 8, 8)
 x_train.shape
 
-rd, inp = resize_data(x_train, y_train, label = (0,), image_size = 8)
+rd, inp = resize_data(x_train, y_train, label = (0,1,2), image_size = 8)
 torch.save(inp, save_path + 'real.pt')
 dataloader = torch.utils.data.DataLoader(rd, batch_size=batch_size, shuffle=True, drop_last=True)
 
