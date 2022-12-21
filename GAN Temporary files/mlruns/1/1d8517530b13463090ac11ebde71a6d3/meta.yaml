@@ -1,0 +1,15 @@
+artifact_uri: file:///home/ludoboz/Projects/Git_projects/GAN/GAN%20Temporary%20files/mlruns/1/1d8517530b13463090ac11ebde71a6d3/artifacts
+end_time: 1671633478349
+entry_point_name: ''
+experiment_id: '1'
+lifecycle_stage: active
+name: ''
+run_id: 1d8517530b13463090ac11ebde71a6d3
+run_uuid: 1d8517530b13463090ac11ebde71a6d3
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1671629812793
+status: 3
+tags: []
+user_id: ludoboz

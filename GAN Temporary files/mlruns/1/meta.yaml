@@ -1,0 +1,4 @@
+artifact_location: file:///home/ludoboz/Projects/Git_projects/GAN/GAN%20Temporary%20files/mlruns/1
+experiment_id: '1'
+lifecycle_stage: active
+name: Classical GAN
