@@ -3,6 +3,7 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pennylane as qml
+from pennylane.templates import RandomLayers
 from sklearn import datasets
 import tensorflow as tf
 
@@ -16,7 +17,7 @@ from torchsummary import summary
 
 import time
 import datetime
-from alive_progress import alive_bar
+from tqdm import tqdm
 
 # from numpy import cov
 # from numpy import trace
@@ -72,21 +73,28 @@ class ConvGenerator(nn.Module):
 
 n_qubits = 5
 
-@qml.qnode(qml.device("default.qubit", wires=n_qubits), interface="torch", diff_method="parameter-shift")
+@qml.qnode(qml.device("lightning.qubit", wires=n_qubits), interface="torch", diff_method="parameter-shift")
 def quantum_generator_circuit(noise, gen_weights, gen_n_layers, n_qubits):
 
     gen_weights = gen_weights.reshape(gen_n_layers, n_qubits)
 
     # Encoding layer
-    for i in range(n_qubits):
-        qml.RY(noise[i], wires=i)
+    #for i in range(n_qubits):
+    #    qml.RY(noise[i], wires=i)
+
+    qml.AngleEmbedding(noise, wires=range(n_qubits))
 
     # PQC layers
     for i in range(gen_n_layers):
 
         # Rotation gates
         for y in range(n_qubits):
-            qml.RY(gen_weights[i][y], wires=y)
+            #for w in range(n_gate_per_layer):
+            qml.RX(gen_weights[i][y], wires=y)  
+            qml.RY(gen_weights[i][y], wires=y)   
+            qml.RZ(gen_weights[i][y], wires=y) 
+
+    #RandomLayers(gen_weights, wires = list(range(n_qubits)), ratio_imprim = 0.1)
             
         # Entangling gates
         for y in range(n_qubits - 1):
@@ -105,6 +113,7 @@ class QuantumGenerator(nn.Module):
         self.n_qubits = n_qubits
         self.ancillary_qubits = ancillary_qubits
         self.gen_n_layers = gen_n_layers
+        #self.n_gate_per_layer = n_gate_per_layer
         self.n_generators = n_generators
         self.device = device
         self.vqc_params = nn.ParameterList([nn.Parameter(q_delta * torch.rand(self.gen_n_layers * self.n_qubits), 
@@ -112,7 +121,7 @@ class QuantumGenerator(nn.Module):
 
     def forward(self, x):
         
-        patch_size = 2 ** (n_qubits - self.ancillary_qubits)
+        patch_size = 2 ** (self.n_qubits - self.ancillary_qubits)
 
         images = torch.Tensor(x.size(0), 0).to(self.device)
 
@@ -224,55 +233,101 @@ class GAN():
 
     def train_step(self, data):
 
+            # d_losses = []
+            # g_losses = []
+            # #===============================
+            # # Discriminator Network Training
+            # #===============================
+
+            # data = data.reshape(-1, self.image_size * self.image_size)
+
+            # self.opt_disc.zero_grad()
+            # real_preds = self.disc_net(data).reshape(self.batch_size, 1)
+            # real_targets = torch.ones(data.size(0),1)
+            # real_loss = torch.nn.functional.binary_cross_entropy(real_preds, real_targets)
+            
+            # # Generate fake images
+            # latent = torch.randn(self.batch_size, self.z_dim)
+            # fake_images = self.gen_net(latent)
+
+            # # Pass fake images through discriminator
+            # fake_targets = torch.zeros(fake_images.size(0), 1)
+            # fake_preds = self.disc_net(fake_images)
+            # fake_loss = torch.nn.functional.binary_cross_entropy(fake_preds, fake_targets)
+
+            # # Update discriminator weights
+            # d_loss = real_loss + fake_loss
+            # d_loss.backward()
+            # self.opt_disc.step()
+            # #===============================
+            # # Generator Network Training
+            # #===============================
+            # self.opt_gen.zero_grad()
+        
+            # # Generate fake images
+            # latent = torch.randn(self.batch_size, self.z_dim)
+            # fake_images = self.gen_net(latent)
+            
+            # # Try to fool the discriminator
+            # preds = self.disc_net(fake_images.view(fake_images.size(0), -1).detach()).reshape(self.batch_size,1)
+            # targets = torch.ones(self.batch_size,1)
+            # g_loss = torch.nn.functional.binary_cross_entropy(preds, targets)
+            
+            # # Update generator weights
+            # g_loss.backward()
+            # self.opt_gen.step()
+
+            # return g_loss, d_loss
+
         # Defining training data
-        data = data.reshape(-1, self.image_size * self.image_size)
-        real_data = data.to(self.device)
+            data = data.reshape(-1, self.image_size * self.image_size)
+            real_data = data.to(self.device)
 
-        # Generating random noise
-        noise = torch.rand(self.batch_size, self.z_dim, device=self.device) #* math.pi / 2
-        fake_data = self.gen_net(noise)
+            # Generating random noise
+            noise = torch.rand(self.batch_size, self.z_dim, device=self.device) #* math.pi / 2
+            fake_data = self.gen_net(noise)
 
-        # Training discriminator
-        self.disc_net.zero_grad()    
+            # Training discriminator
+            self.opt_disc.zero_grad()    
 
-        if self.model == 'Classical_linear' or self.model == 'Quantum_linear':    
-            disc_real = self.disc_net(real_data).view(-1)
-        elif self.model == 'Classical_convolutional' or self.model == 'Quantum_convolutional':
-            disc_real = self.disc_net(real_data.view(1, self.image_size*self.image_size, 1, 1)).view(-1)
-        else:
-            print('Typology not admitted.')  
+            if self.model == 'Classical_linear' or self.model == 'Quantum_linear':    
+                disc_real = self.disc_net(real_data).view(-1)
+            elif self.model == 'Classical_convolutional' or self.model == 'Quantum_convolutional':
+                disc_real = self.disc_net(real_data.view(1, self.image_size*self.image_size, 1, 1)).view(-1)
+            else:
+                print('Typology not admitted.')  
 
 
-        if self.model == 'Classical_linear':
-            disc_fake = self.disc_net(fake_data.view(fake_data.size(0), -1).detach()).view(-1)
-        elif self.model == 'Quantum_linear':
-            disc_fake = self.disc_net(fake_data.detach()).view(-1)
-        elif self.model == 'Classical_convolutional'or self.model == 'Quantum_convolutional':
-            disc_fake = self.disc_net(fake_data.view(1, self.image_size*self.image_size, 1, 1).detach()).view(-1)            
-        else:
-            print('Typology not admitted.')
+            if self.model == 'Classical_linear':
+                disc_fake = self.disc_net(fake_data.view(fake_data.size(0), -1).detach()).view(-1)
+            elif self.model == 'Quantum_linear':
+                disc_fake = self.disc_net(fake_data.detach()).view(-1)
+            elif self.model == 'Classical_convolutional'or self.model == 'Quantum_convolutional':
+                disc_fake = self.disc_net(fake_data.view(1, self.image_size*self.image_size, 1, 1).detach()).view(-1)            
+            else:
+                print('Typology not admitted.')
 
-        ld_real = self.disc_loss(disc_real, self.real_labels)
-        ld_fake = self.disc_loss(disc_fake, self.fake_labels)
-        ld_real.backward()
-        ld_fake.backward()
-        ld = ld_real + ld_fake
-        self.opt_disc.step()
+            ld_real = self.disc_loss(disc_real, self.real_labels)
+            ld_fake = self.disc_loss(disc_fake, self.fake_labels)
+            ld_real.backward()
+            ld_fake.backward()
+            ld = ld_real + ld_fake
+            self.opt_disc.step()
 
-        # Training generator
-        self.gen_net.zero_grad()
-        if self.model == 'Classical_linear' or self.model == 'Quantum_linear':
-            disc_fake = self.disc_net(fake_data).view(-1)
-        elif self.model == 'Classical_convolutional'or self.model == 'Quantum_convolutional':
-            disc_fake = self.disc_net(fake_data.view(1, self.image_size*self.image_size, 1, 1)).view(-1)
-        else:
-            print('Typology not admitted.')
+            # Training generator
+            self.opt_gen.zero_grad()
+            if self.model == 'Classical_linear' or self.model == 'Quantum_linear':
+                disc_fake = self.disc_net(fake_data).view(-1)
+            elif self.model == 'Classical_convolutional'or self.model == 'Quantum_convolutional':
+                disc_fake = self.disc_net(fake_data.view(1, self.image_size*self.image_size, 1, 1)).view(-1)
+            else:
+                print('Typology not admitted.')
 
-        lg = self.gen_loss(disc_fake, self.real_labels)
-        lg.backward()
-        self.opt_gen.step()
+            lg = self.gen_loss(disc_fake, self.real_labels)
+            lg.backward()
+            self.opt_gen.step()
 
-        return lg, ld
+            return lg, ld
 
 
     def learn(self, epochs):
@@ -285,48 +340,54 @@ class GAN():
 
         results = []
 
-        with alive_bar(epochs, force_tty = True) as bar:
+        #with tqdm(range(epochs)) as t:
 
-            while True:            
+        #    for epoch in t:
+
+        while True:
+            for data, _ in self.dataloader:
+
+                lg, ld = self.train_step(data) 
+
+                #t.set_postfix({"Discriminator loss" : ld, "Generator loss" : lg})  
+
+                epoch += 1
+                print(f'Epoch_{epoch}')               
+
+                # Saving models each 10 epochs
+                if epoch % 10 == 0:
+
+                    test_images = self.gen_net(self.fixed_noise).view(8,1,self.image_size,self.image_size).cpu().detach()
                     
-                for _, (data, _) in enumerate(self.dataloader):
-
-                    lg, ld = self.train_step(data)                
+                    if self.model == 'Classical_linear':
+                        torch.save(self.gen_net, self.save_path + f'lin_gen_epoch_{epoch}')
+                    elif self.model == 'Quantum_linear':
+                        torch.save(self.gen_net, self.save_path + f'lin_q_gen_epoch_{epoch}')
+                    elif self.model == 'Classical_convolutional':
+                        torch.save(self.gen_net, self.save_path + f'conv_gen_epoch_{epoch}')
+                    elif self.model == 'Quantum_convolutional':
+                        torch.save(self.gen_net, self.save_path + f'conv_q_gen_epoch_{epoch}')
+                    else:
+                        print('Typology not admitted.')
                     
-                    epoch += 1
+                    # Save results every 50 iterations
+                    if epoch % 50 == 0:
+                        results.append(test_images) 
+                        torch.save(results, self.save_path + 'synthetic.pt')                                           
+                
+                self.loss_g.append(lg.item())#.detach().numpy())
+                self.loss_d.append(ld.item())#.detach().numpy())     
 
-                    time.sleep(0.05)
-                    bar()
+                #print('Gen params: ', self.gen_net.state_dict())
 
-                    # Saving models each 10 epochs
-                    if epoch % 10 == 0:
+                if epoch==epochs:
+                    break
 
-                        test_images = self.gen_net(self.fixed_noise).view(8,1,self.image_size,self.image_size).cpu().detach()
-                        
-                        if self.model == 'Classical_linear':
-                            torch.save(self.gen_net, self.save_path + f'lin_gen_epoch_{epoch}')
-                        elif self.model == 'Quantum_linear':
-                            torch.save(self.gen_net, self.save_path + f'lin_q_gen_epoch_{epoch}')
-                        elif self.model == 'Classical_convolutional':
-                            torch.save(self.gen_net, self.save_path + f'conv_gen_epoch_{epoch}')
-                        elif self.model == 'Quantum_convolutional':
-                            torch.save(self.gen_net, self.save_path + f'conv_q_gen_epoch_{epoch}')
-                            #torch.save(self.gen_net.state_dict(), self.save_path + f'gen_epoch_{epoch}')
-                        else:
-                            print('Typology not admitted.')
-                        
-                        # Save results every 50 iterations
-                        if epoch % 50 == 0:
-                            results.append(test_images) 
-                            torch.save(results, self.save_path + 'synthetic.pt')                                           
-                    
-                    self.loss_g.append(lg.detach().numpy())
-                    self.loss_d.append(ld.detach().numpy())       
+            if epoch==epochs:
+                break  
 
-                    if epoch == epochs:
-                        break
-                if epoch == epochs:
-                    break  
+            torch.save(self.loss_g, self.save_path + 'gen_loss.pt') 
+            torch.save(self.loss_d, self.save_path + 'disc_loss.pt')  
 
 
 def generated_images(results):

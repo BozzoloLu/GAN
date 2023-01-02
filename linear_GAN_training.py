@@ -27,7 +27,7 @@ batch_size = 1
 loss = nn.BCELoss()
 lr_gen = 0.3
 lr_disc = 0.01
-epochs = 2000
+epochs = 1500
 
 
 #----------------- Loading real data -----------------#
@@ -40,7 +40,8 @@ y_train = digits.target
 x_train = x_train.reshape(len(x_train), 8, 8)
 x_train.shape
 
-rd, inp = resize_data(x_train, y_train, label = (0,1,2), image_size = 8)
+
+rd, inp = resize_data(x_train, y_train, label = (0,1), image_size = 8)
 torch.save(inp, save_path + 'real.pt')
 dataloader = torch.utils.data.DataLoader(rd, batch_size=batch_size, shuffle=True, drop_last=True)
 
@@ -57,7 +58,7 @@ loss_d_tot = []
 
 for run in range(runs): 
 
-    gan = GAN(model = 'Classical', dataloader = dataloader, gen_net = gen_net, disc_net = disc_net, z_dim = z_dim, image_size = image_size, 
+    gan = GAN(model = 'Classical_linear', dataloader = dataloader, gen_net = gen_net, disc_net = disc_net, z_dim = z_dim, image_size = image_size, 
                 batch_size = batch_size, lr_gen = lr_gen, lr_disc = lr_disc, gen_loss = loss, disc_loss = loss, save_path = save_path, device = device)
 
     gan.learn(epochs)
@@ -66,5 +67,5 @@ for run in range(runs):
     loss_d_tot.append(gan.loss_d)
     
     # Saving loss results 
-    torch.save(loss_g_tot, save_path + 'gen_loss.pt') 
-    torch.save(loss_d_tot, save_path + 'disc_loss.pt')  
+    # torch.save(loss_g_tot, save_path + 'gen_loss.pt') 
+    # torch.save(loss_d_tot, save_path + 'disc_loss.pt')  

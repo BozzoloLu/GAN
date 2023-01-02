@@ -40,7 +40,7 @@ y_train = digits.target
 x_train = x_train.reshape(len(x_train), 8, 8)
 x_train.shape
 
-rd, inp = resize_data(x_train, y_train, label = (0,1,2), image_size = 8)
+rd, inp = resize_data(x_train, y_train, label = (0,1), image_size = 8)
 torch.save(inp, save_path + 'real.pt')
 dataloader = torch.utils.data.DataLoader(rd, batch_size=batch_size, shuffle=True, drop_last=True)
 
