@@ -3,21 +3,10 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import pennylane as qml
-from pennylane.templates import RandomLayers
-from sklearn import datasets
 import tensorflow as tf
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.nn import Sequential, Linear, LeakyReLU, Sigmoid
-from torch.optim import Adam
-import torchvision.transforms as transforms
-from torch.utils.data import Dataset, DataLoader
-from torchvision import models
-from torchsummary import summary
-
-import time
 import datetime
 from tqdm import tqdm
 
@@ -336,3 +325,25 @@ def run_model(dataloader, generator, discriminator, noise_dim, image_size, batch
 
         #return gan.ep_g_loss, gan.ep_d_loss
     #return gan.results#, gan.ep_g_loss, gan.ep_d_loss
+
+
+def generated_images(results):
+
+    fig = plt.figure(figsize=(20, 10))
+    outer = gridspec.GridSpec(len(results)//2, 2, wspace=0.1)
+
+    for i, images in enumerate(results):
+        inner = gridspec.GridSpecFromSubplotSpec(1, images.size(0), subplot_spec=outer[i])
+        
+        images = torch.squeeze(images, dim=1)
+        for j, im in enumerate(images):
+
+            ax = plt.Subplot(fig, inner[j])
+            ax.imshow(im.numpy(), cmap="gray")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            if j==0:
+                ax.set_title(f'Run {i+1}', loc='left', color = 'White')
+            fig.add_subplot(ax)
+
+    plt.show()
