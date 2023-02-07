@@ -22,21 +22,33 @@ device = torch.device("cpu")
 
 def resize_data(x, y, label, image_size):
 
-    arr = []
-    arr_input = []
+    ''' Function scaling real data.
+        
+        Input:  image array, label array, image size, number of classes.    
+        Output : list of tuple (image torch tensor, label torch tensor), 
+                 list of image tensor. '''
+
+    images_tuple = []
+    images = []
 
     for t, l in zip(x, y):
         if l in label:
             t = torch.tensor(t, dtype = torch.float32).reshape(image_size, image_size)
             t = t/16
-            arr.append((t, l))
-            arr_input.append(t)
-    return arr, arr_input
+            images_tuple.append((t, l))
+            images.append(t)
+    return images_tuple, images
+
 
 
 #------------------------------- Classical Linear Generator -------------------------------#
 
 class Generator(nn.Module):
+
+    ''' Model generating images starting from random noise.
+        
+        Input: noise dimention. 
+        Output: torch tensor of size (1, image size x image size). '''
 
     def __init__(self, z_dim):
         super(Generator, self).__init__()
@@ -50,6 +62,7 @@ class Generator(nn.Module):
         return self.activation(self.lin(self.relu(self.dense_layer(x))))
 
 
+
 #------------------------------- Quantum Generator -------------------------------#
 
 
@@ -58,6 +71,11 @@ n_qubits = 5
 
 @qml.qnode(qml.device("lightning.qubit", wires=n_qubits), interface="torch", diff_method="parameter-shift")
 def quantum_generator_circuit(noise, gen_weights, gen_n_layers, n_qubits):
+
+    ''' Function creating quantum circuit.
+    
+        Input: noise torch tensor, weights torch tensor, number of layers, number of qubits.
+        Ouput: list of probabilities. '''
 
     gen_weights = gen_weights.reshape(gen_n_layers, n_qubits)
 
@@ -85,7 +103,12 @@ def quantum_generator_circuit(noise, gen_weights, gen_n_layers, n_qubits):
 
 class QuantumGenerator(nn.Module):
 
-    def __init__(self, n_qubits, ancillary_qubits, gen_n_layers, n_generators, device, q_delta=1):
+    ''' Model patching image with variational quantum circuit. 
+    
+        Input: number of qubits, number of ancillary qubits, number of VQC layers, number of circuits (generators) for patching, device for running. 
+        Output: torch tensor of size (1, image size x image size). '''
+
+    def __init__(self, n_qubits, ancillary_qubits, gen_n_layers, n_generators, device):
         super(QuantumGenerator, self).__init__()
 
         self.n_qubits = n_qubits
@@ -93,16 +116,15 @@ class QuantumGenerator(nn.Module):
         self.gen_n_layers = gen_n_layers
         self.n_generators = n_generators
         self.device = device
-        self.vqc_params = nn.ParameterList([nn.Parameter(q_delta * torch.rand(self.gen_n_layers * self.n_qubits), 
+        self.vqc_params = nn.ParameterList([nn.Parameter(torch.rand(self.gen_n_layers * self.n_qubits), 
                                             requires_grad=True)for _ in range(self.n_generators)])
 
     def forward(self, x):
         
         patch_size = 2 ** (self.n_qubits - self.ancillary_qubits)
-
         images = torch.Tensor(x.size(0), 0).to(self.device)
 
-        # Iterate over all sub-generators
+        # Iterating over all generators
         for params in self.vqc_params:
             
             patches = torch.Tensor(0, patch_size).to(self.device)
@@ -127,6 +149,11 @@ class QuantumGenerator(nn.Module):
 
 class Discriminator(nn.Module):
 
+    ''' Model for binary classification task.
+    
+        Input: image size.        
+        Output: tensor of dimention 2. '''
+
     def __init__(self, image_size):
         super(Discriminator, self).__init__()
 
@@ -139,30 +166,16 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.sigmoid(self.linear2(self.relu1(self.linear1(x))))
 
-# class Discriminator(nn.Module):
-#     """Fully connected classical discriminator"""
-
-#     def __init__(self):
-#         super().__init__()
-
-#         self.model = nn.Sequential(
-#             # Inputs to first hidden layer (num_input_features -> 64)
-#             nn.Linear(8*8, 64),
-#             nn.ReLU(),
-#             # First hidden layer (64 -> 16)
-#             nn.Linear(64, 16),
-#             nn.ReLU(),
-#             # Second hidden layer (16 -> output)
-#             nn.Linear(16, 1),
-#             nn.Sigmoid(),
-#         )
-
-#     def forward(self, x):
-#         return self.model(x)
-
-
 
 class GAN():
+
+    ''' Class trining generator and discriminator models. 
+        
+        Input: model typology, real dataloader, generator model, discriminator model, noise dimention, image size, batch size, 
+               loss, generator learning rate, discriminator learning rate, device for running, path for saving. 
+        Output: loss values and model parameters saved. '''
+        
+
     def __init__(self, model_type, dataloader, gen_net, disc_net, noise_dim, image_size, batch_size, loss, lr_gen, lr_disc, 
                  device, save_path):
 
@@ -233,15 +246,14 @@ class GAN():
 
     def learn(self, epochs):
 
-        # Fixed noise to visually track the generated images throughout training
+        # Fixed noise to track the generated images throughout training
         fixed_noise = torch.rand(8, self.noise_dim, device=self.device) * np.pi / 2
 
         self.results = []        
         self.ep_d_loss = []
-        self.ep_g_loss = []    
-                      
+        self.ep_g_loss = []                          
         
-        with tqdm(range(epochs)) as tepochs:#total=len(self.dataloader), ncols=140, desc=f'epoch {epoch}') as bar:
+        with tqdm(range(epochs)) as tepochs:
 
             for _ in tepochs:
 
@@ -277,22 +289,17 @@ class GAN():
             else:
                 print('Typology not admitted.')
 
-            # if epoch == epochs:
-            #     break
 
-            
 
 def run_model(dataloader, generator, discriminator, noise_dim, image_size, batch_size, loss, lr_gen, lr_disc, device, epochs, 
               model_type, reset_parameters=True):
-
     
-    # for run in range(runs):
-
-    #     print(f'RUN {run+1}')
+    ''' Function managing single run.
         
-    #for i in labels:
+        Input: dataloader, generator trained model, discriminator trained model, noise dimention, image size, batch size, loss, 
+               generator learning rate, discriminator learning rate, device for running, epochs, model typology, reset parameters 
+               for choosing if resetting model parameters at the end of the run. '''
 
-        #print(f'Label {i}:')
 
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     if model_type == 'Classical_linear':
@@ -329,6 +336,12 @@ def run_model(dataloader, generator, discriminator, noise_dim, image_size, batch
 
 def generated_images(results):
 
+    ''' Function visualizing images generation during training.
+        
+        Input: list of images torch tensors. 
+        output: batch of images for choosen epochs'''
+
+
     fig = plt.figure(figsize=(20, 10))
     outer = gridspec.GridSpec(len(results)//2, 2, wspace=0.1)
 
@@ -343,7 +356,8 @@ def generated_images(results):
             ax.set_xticks([])
             ax.set_yticks([])
             if j==0:
-                ax.set_title(f'Run {i+1}', loc='left', color = 'White')
+                ax.set_title(f'Epoch {i+1}', loc='left', color = 'White')
             fig.add_subplot(ax)
 
     plt.show()
+
