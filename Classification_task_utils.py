@@ -337,7 +337,7 @@ def accuracy_boxplot(c_acc_final, q_acc_final, labels):
     for box in boxes["boxes"]:
         box.set(facecolor = "green")
 
-    boxes = ax.boxplot(q_acc_final, patch_artist=True, showmeans = False, showfliers=False, widths = 0.12, labels = labels)
+    boxes = ax.boxplot(q_acc_final, patch_artist=True, showmeans = False, showfliers=False, widths = 0.15, labels = labels)
     for box in boxes["boxes"]:
         box.set(facecolor = "palegreen")
 
